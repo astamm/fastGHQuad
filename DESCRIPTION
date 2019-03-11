@@ -9,8 +9,10 @@ Description: Fast, numerically-stable Gauss-Hermite quadrature rules and
     utility functions for adaptive GH quadrature. See Liu, Q. and Pierce, D. A.
     (1994) <doi:10.2307/2337136> for a reference on these methods.
 License: MIT + file LICENSE
+Encoding: UTF-8
 LazyLoad: yes
 URL: https://github.com/awblocker/fastGHQuad
 Depends:
     Rcpp (>= 0.11.0)
 LinkingTo: Rcpp
+RoxygenNote: 6.1.1

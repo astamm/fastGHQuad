@@ -75,22 +75,59 @@ void quadInfoGolubWelsch(int n, vector<double> &D, vector<double> &E,
 
   // Setup for eigenvalue computations
   char JOBZ = 'V';  // Flag to compute both eigenvalues & vectors.
+  char RANGE = 'V';
+  double VL = -4.0;
+  double VU = 4.0;
+  int IL = 0;
+  int IU = 1;
+  double ABSTOL = std::sqrt(std::numeric_limits<double>::epsilon());
+  int M;
+  vector<double> W(n);
+  
+  // The number of eigenvalues between -4 and 4 follows very closely this 
+  // relationship for moderately high values of n (> 2^3 = 8) and is an 
+  // upper bound for smaller values. Hence It is a good candidate as upper 
+  // bound to avoid allocating memory for a n*n matrix. The GH rule is now
+  // computed using 30GB RAM for n = 2^20 = 1,048,576.
+  unsigned int Mmax = std::ceil(std::pow(2.0, 1.8177530512018800 + 0.5022347758669726 * std::log2(n)));
+  Rcpp::Rcout << "Predicted number of eigenvalues in the range [-4, +4]: " << Mmax << " (+ 100)" << std::endl;
+  
+  // Add 100 to be on the safe side
+  Mmax += 100;
+  
+  vector<double> Z(Mmax * n);  // This holds the resulting eigenvectors.
+  vector<double> WORK(5 * n);
+  vector<int> IWORK(5 * n);
+  vector<int> IFAIL(n);
   int INFO;
-  vector<double> WORK(2 * n - 2);
-  vector<double> Z(n * n);  // This holds the resulting eigenvectors.
 
   // Run eigen decomposition
-  F77_NAME(dstev)(&JOBZ, &n, &D[0], &E[0],  // Job flag & input matrix
-                  &Z[0], &n,       // Output array for eigenvectors & dim
-                  &WORK[0], &INFO  // Workspace & info flag
-                  );
+  F77_NAME(dstevx)(
+      &JOBZ, &RANGE, &n, &D[0], &E[0], &VL, &VU, &IL, &IU, &ABSTOL, // Job flag & input matrix
+      &M, &W[0], &Z[0], &n,       // Output array for eigenvectors & dim
+      &WORK[0], &IWORK[0], &IFAIL[0], &INFO  // Workspace & info flag
+  );
+  
+  Rcpp::Rcout << "   Actual number of eigenvalues in the range [-4, +4]: " << M << std::endl;
 
   // Setup x & w
-  int i;
-  for (i = 0; i < n; i++) {
-    (*x)[i] = D[i];
-    (*w)[i] = mu0 * Z[i * n] * Z[i * n];
+  (*x).resize(M);
+  (*w).resize(M);
+  unsigned int numPoints = 0;
+  for (unsigned int i = 0;i < M;++i) {
+    double weightValue = mu0 * Z[i * n] * Z[i * n];
+    if (weightValue < std::sqrt(std::numeric_limits<double>::epsilon()))
+      continue;
+    
+    (*x)[numPoints] = W[i];
+    (*w)[numPoints] = weightValue;
+    ++numPoints;
   }
+  
+  Rcpp::Rcout << "          Number of GH points with significant weight: " << numPoints << std::endl;
+  
+  (*x).resize(numPoints);
+  (*w).resize(numPoints);
 }
 
 void findPolyRoots(const vector<double> &c, int n, vector<double> *r) {
